@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html ng-app="shopApp">
+<head>
+  <meta charset="UTF-8">
+  <title>AngularJS Product Store</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body ng-controller="ShopController as shop">
+
+  <header>
+    <h1>🛒 My Product Store</h1>
+    <input type="text" ng-model="shop.searchText" placeholder="Search products...">
+    <span class="cart">Cart: {{shop.cart.length}} items</span>
+  </header>
+
+  <section class="product-list">
+    <div class="product" ng-repeat="product in shop.products | filter:shop.searchText">
+      <h2>{{product.name}}</h2>
+      <p>{{product.description}}</p>
+      <p>Price: ₹{{product.price}}</p>
+      <button ng-click="shop.addToCart(product)">Add to Cart</button>
+    </div>
+  </section>
+
+  <section class="cart-section" ng-if="shop.cart.length > 0">
+    <h2>🛍 Your Cart</h2>
+    <ul>
+      <li ng-repeat="item in shop.cart track by $index">
+        {{item.name}} - ₹{{item.price}}
+        <button ng-click="shop.removeFromCart($index)">Remove</button>
+      </li>
+    </ul>
+    <p><strong>Total:</strong> ₹{{shop.getTotal()}}</p>
+  </section>
+
+  <div class="loading" ng-if="shop.loading">Loading products...</div>
+  <div class="error" ng-if="shop.error">{{ shop.error }}</div>
+
+  <script src="app.js"></script>
+</body>
+</html>

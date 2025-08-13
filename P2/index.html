@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products Management System</title>
+    <link rel="stylesheet" href="Stylesheet.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛍️ Products Management</h1>
+            <p class="subtitle">Manage your product inventory with ease</p>
+        </header>
+
+        <div class="stats" id="stats">
+            <div class="stat-item">
+                <span class="stat-number" id="totalProducts">0</span>
+                <span class="stat-label">Total Products</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="totalValue">$0</span>
+                <span class="stat-label">Total Value</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="totalStock">0</span>
+                <span class="stat-label">Total Stock</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="form-section">
+                <h2 class="form-title">Add New Product</h2>
+                <form id="productForm">
+                    <div class="form-group">
+                        <label for="name">Product Name</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="price">Price ($)</label>
+                        <input type="number" id="price" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <input type="text" id="category" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="stock">Stock Quantity</label>
+                        <input type="number" id="stock" min="0" required>
+                    </div>
+                    <button type="submit" class="btn">Add Product</button>
+                    <button type="button" class="btn btn-secondary" id="cancelEdit" style="display: none;">Cancel Edit</button>
+                </form>
+            </div>
+
+            <div class="products-section">
+                <h2 class="form-title">Products Inventory</h2>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <label for="filterCategory">Filter by Category</label>
+                        <select id="filterCategory">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="minPrice">Min Price</label>
+                        <input type="number" id="minPrice" step="0.01" min="0" placeholder="0">
+                    </div>
+                    <div class="filter-group">
+                        <label for="maxPrice">Max Price</label>
+                        <input type="number" id="maxPrice" step="0.01" min="0" placeholder="Any">
+                    </div>
+                </div>
+
+                <div id="messageArea"></div>
+                <div id="loadingIndicator" class="loading" style="display: none;">
+                    🔄 Loading products...
+                </div>
+                <div id="productsContainer" class="products-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Product</h3>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <form id="editForm">
+                <div class="form-group">
+                    <label for="editName">Product Name</label>
+                    <input type="text" id="editName" required>
+                </div>
+                <div class="form-group">
+                    <label for="editPrice">Price ($)</label>
+                    <input type="number" id="editPrice" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="editCategory">Category</label>
+                    <input type="text" id="editCategory" required>
+                </div>
+                <div class="form-group">
+                    <label for="editStock">Stock Quantity</label>
+                    <input type="number" id="editStock" min="0" required>
+                </div>
+                <button type="submit" class="btn">Update Product</button>
+                <button type="button" class="btn btn-secondary" id="cancelModal">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="JavaScript.js"></script>
+</body>
+</html>

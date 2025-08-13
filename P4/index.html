@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="productApp">
+<head>
+  <meta charset="UTF-8">
+  <title>Product List - AngularJS</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, button { padding: 5px; margin: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background-color: #f4f4f4; }
+  </style>
+</head>
+<body ng-controller="ProductController">
+
+  <h1>📦 Product List</h1>
+
+  <!-- Search -->
+  <input type="text" ng-model="searchText" placeholder="Search product...">
+
+  <!-- Add Product -->
+  <h3>Add Product</h3>
+  <input type="text" ng-model="newProduct.name" placeholder="Product Name">
+  <input type="number" ng-model="newProduct.price" placeholder="Price">
+  <button ng-click="addProduct()">Add</button>
+
+  <!-- Products Table -->
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Price (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr ng-repeat="product in products | filter:searchText">
+        <td>{{ product.name }}</td>
+        <td>{{ product.price | currency:"₹" }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+</body>
+
+<script>
+  angular.module('productApp', [])
+    .controller('ProductController', function($scope, $http) {
+      $scope.products = [];
+      $scope.newProduct = {};
+
+      // Fetch products from backend
+      $http.get('http://localhost:3000/products')
+        .then(function(response) {
+          $scope.products = response.data;
+        });
+
+      // Add new product
+      $scope.addProduct = function() {
+        if (!$scope.newProduct.name || !$scope.newProduct.price) return;
+        
+        $http.post('http://localhost:3000/products', $scope.newProduct)
+          .then(function(response) {
+            $scope.products.push(response.data);
+            $scope.newProduct = {};
+          });
+      };
+    });
+</script>
+
+</html>
