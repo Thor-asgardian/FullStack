@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products API Manager</title>
+    <link rel="stylesheet" href="Style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛍️ Products API Manager</h1>
+            <p>Full-stack product management system</p>
+            <div id="apiStatus" class="status offline">🔴 Checking API...</div>
+        </div>
+
+        <div class="main-content">
+            <!-- Add/Edit Product Form -->
+            <div class="form-section">
+                <h2 id="formTitle" class="form-title">➕ Add New Product</h2>
+                <form id="productForm">
+                    <input type="hidden" id="productId">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="productName">Product Name</label>
+                            <input type="text" id="productName" required placeholder="Enter product name">
+                        </div>
+                        <div class="form-group">
+                            <label for="productPrice">Price ($)</label>
+                            <input type="number" id="productPrice" step="0.01" min="0" required placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="productCategory">Category</label>
+                            <input type="text" id="productCategory" required placeholder="Enter category">
+                        </div>
+                        <div class="form-group">
+                            <label for="productStock">Stock Status</label>
+                            <select id="productStock" required>
+                                <option value="true">✅ In Stock</option>
+                                <option value="false">❌ Out of Stock</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <button type="submit" id="submitBtn" class="btn success">➕ Create Product</button>
+                        <button type="button" id="cancelBtn" class="btn" onclick="resetForm()" style="display: none;">❌ Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Filters and Stats -->
+            <div class="filters-section">
+                <h3>🔍 Search & Filter</h3>
+                <div class="filters-grid">
+                    <div class="form-group">
+                        <label for="searchFilter">Search Products</label>
+                        <input type="text" id="searchFilter" placeholder="Search by name...">
+                    </div>
+                    <div class="form-group">
+                        <label for="categoryFilter">Filter by Category</label>
+                        <select id="categoryFilter">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="stockFilter">Filter by Stock</label>
+                        <select id="stockFilter">
+                            <option value="">All Products</option>
+                            <option value="true">✅ In Stock Only</option>
+                            <option value="false">❌ Out of Stock Only</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button type="button" class="btn" onclick="loadProducts()">🔄 Refresh</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalProducts">0</div>
+                    <div>Total Products</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="inStockProducts">0</div>
+                    <div>In Stock</div>
+                </div>
+            </div>
+
+            <!-- Products Display -->
+            <div id="productsContainer" class="products-grid">
+                <div style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">⏳</div>
+                    <h3>Loading products...</h3>
+                </div>
+            </div>
+
+            <!-- Response Area -->
+            <div class="response-area" id="responseArea">
+                System ready - waiting for API connection...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        let products = [];
+        let editingProduct = null;
+        let apiStatusInterval;
+
+        // Check API status on load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Frontend loaded, checking API...');
+            checkApiStatus();
+            loadProducts();
+            
+            // Check API status every 10 seconds
+            apiStatusInterval = setInterval(checkApiStatus, 10000);
+        });
+
+        async function checkApiStatus() {
+            const statusElement = document.getElementById('apiStatus');
+            
+            try {
+                console.log('🔍 Checking API status...');
+                
+                // Add a timeout to the fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+                
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        statusElement.className = 'status online';
+                        statusElement.innerHTML = '🟢 API Online';
+                        console.log('✅ API is online');
+                        
+                        // If this is the first time going online, load products
+                        if (products.length === 0) {
+                            loadProducts();
+                        }
+                    } else {
+                        throw new Error('API returned unsuccessful response');
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+            } catch (error) {
+                console.log('❌ API is offline:', error.message);
+                statusElement.className = 'status offline';
+                statusElement.innerHTML = '🔴 API Offline';
+                
+                // Show helpful error message in response area
+                if (error.name === 'AbortError') {
+                    logResponse('⏰ API request timed out. Server might be starting up...');
+                } else if (error.message.includes('fetch')) {
+                    logResponse('🔌 Cannot connect to API server. Make sure your Express server is running on http://localhost:3000');
+                } else {
+                    logResponse(`❌ API Error: ${error.message}`);
+                }
+            }
+        }
+
+        async function loadProducts() {
+            const statusElement = document.getElementById('apiStatus');
+            
+            // Don't try to load products if API is offline
+            if (statusElement.classList.contains('offline')) {
+                logResponse('⚠️ Cannot load products - API is offline');
+                displayOfflineMessage();
+                return;
+            }
+            
+            try {
+                showLoading('Loading products...');
+                console.log('📦 Loading products from API...');
+                
+                const search = document.getElementById('searchFilter').value;
+                const category = document.getElementById('categoryFilter').value;
+                const stock = document.getElementById('stockFilter').value;
+                
+                let url = `${API_BASE}/api/products?`;
+                if (search) url += `search=${encodeURIComponent(search)}&`;
+                if (category) url += `category=${encodeURIComponent(category)}&`;
+                if (stock) url += `inStock=${stock}&`;
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    products = data.data;
+                    displayProducts(products);
+                    updateStats(data);
+                    updateCategoryFilter();
+                    logResponse(`✅ Loaded ${products.length} products successfully`);
+                    console.log(`📊 Loaded ${products.length} products`);
+                } else {
+                    throw new Error(data.error || 'Unknown API error');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading products:', error);
+                logResponse(`❌ Error loading products: ${error.message}`);
+                displayErrorMessage('Failed to load products');
+                
+                // Check if this was a connection error
+                if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+                    checkApiStatus(); // Recheck API status
+                }
+            }
+        }
+
+        function displayProducts(productsToShow) {
+            const container = document.getElementById('productsContainer');
+            
+            if (productsToShow.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #7f8c8d;">
+                        <div style="font-size: 3rem; margin-bottom: 20px;">📦</div>
+                        <h3>No products found</h3>
+                        <p>Try adjusting your search filters or add some products!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = productsToShow.map(product => `
+                <div class="product-card">
+                    <div class="product-header">
+                        <div class="product-name">${escapeHtml(product.name)}</div>
+                        <div class="product-price">$${product.price.toFixed(2)}</div>
+                    </div>
+                    <div class="product-details">
+                        <strong>Category:</strong> ${escapeHtml(product.category)} <br>
+                        <strong>ID:</strong> ${product.id}
+                        ${product.createdAt ? `<br><strong>Created:</strong> ${new Date(product.createdAt).toLocaleDateString()}` : ''}
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <span class="stock-badge ${product.inStock ? 'in-stock' : 'out-of-stock'}">
+                            ${product.inStock ? '✅ In Stock' : '❌ Out of Stock'}
+                        </span>
+                    </div>
+                    <div class="product-actions">
+                        <button class="btn" onclick="editProduct(${product.id})" title="Edit this product">
+                            ✏️ Edit
+                        </button>
+                        <button class="btn danger" onclick="deleteProduct(${product.id})" title="Delete this product">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function displayOfflineMessage() {
+            const container = document.getElementById('productsContainer');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #e74c3c;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">🔌</div>
+                    <h3>API Server is Offline</h3>
+                    <p>Please start your Express server:</p>
+                    <code style="background: #f8f9fa; padding: 10px; border-radius: 5px; display: block; margin: 10px 0;">
+                        node app.js
+                    </code>
+                    <p>Then click the "🔄 Refresh" button above.</p>
+                </div>
+            `;
+        }
+
+        function displayErrorMessage(message) {
+            const container = document.getElementById('productsContainer');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #e74c3c;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">⚠️</div>
+                    <h3>Error</h3>
+                    <p>${escapeHtml(message)}</p>
+                    <button class="btn" onclick="loadProducts()" style="margin-top: 15px;">
+                        🔄 Try Again
+                    </button>
+                </div>
+            `;
+        }
+
+        function updateStats(data) {
+            document.getElementById('totalProducts').textContent = data.count || 0;
+            document.getElementById('inStockProducts').textContent = 
+                products.filter(p => p.inStock).length;
+        }
+
+        function updateCategoryFilter() {
+            const categoryFilter = document.getElementById('categoryFilter');
+            const categories = [...new Set(products.map(p => p.category))];
+            
+            const currentValue = categoryFilter.value;
+            categoryFilter.innerHTML = '<option value="">All Categories</option>';
+            
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+            
+            categoryFilter.value = currentValue;
+        }
+
+        async function createOrUpdateProduct(event) {
+            event.preventDefault();
+            
+            const statusElement = document.getElementById('apiStatus');
+            
+            // Don't allow form submission if API is offline
+            if (statusElement.classList.contains('offline')) {
+                logResponse('⚠️ Cannot create/update product - API is offline');
+                return;
+            }
+            
+            const productData = {
+                name: document.getElementById('productName').value.trim(),
+                price: parseFloat(document.getElementById('productPrice').value),
+                category: document.getElementById('productCategory').value.trim(),
+                inStock: document.getElementById('productStock').value === 'true'
+            };
+            
+            // Basic validation
+            if (!productData.name || !productData.category || isNaN(productData.price) || productData.price <= 0) {
+                logResponse('❌ Please fill in all fields with valid values');
+                return;
+            }
+            
+            try {
+                const productId = document.getElementById('productId').value;
+                let response;
+                
+                if (productId) {
+                    // Update existing product
+                    showLoading('Updating product...');
+                    console.log(`📝 Updating product ${productId}...`);
+                    
+                    response = await fetch(`${API_BASE}/api/products/${productId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(productData)
+                    });
+                } else {
+                    // Create new product
+                    showLoading('Creating product...');
+                    console.log('➕ Creating new product...');
+                    
+                    response = await fetch(`${API_BASE}/api/products`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(productData)
+                    });
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const action = productId ? 'Updated' : 'Created';
+                    logResponse(`✅ ${action} product successfully: "${data.data.name}"`);
+                    console.log(`✅ ${action} product:`, data.data);
+                    
+                    resetForm();
+                    loadProducts();
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                const action = document.getElementById('productId').value ? 'updating' : 'creating';
+                console.error(`❌ Error ${action} product:`, error);
+                logResponse(`❌ Error ${action} product: ${error.message}`);
+                
+                if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+                    checkApiStatus();
+                }
+            }
+        }
+
+        function editProduct(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) {
+                logResponse(`❌ Product with ID ${id} not found`);
+                return;
+            }
+            
+            document.getElementById('productId').value = product.id;
+            document.getElementById('productName').value = product.name;
+            document.getElementById('productPrice').value = product.price;
+            document.getElementById('productCategory').value = product.category;
+            document.getElementById('productStock').value = product.inStock.toString();
+            
+            document.getElementById('formTitle').textContent = '✏️ Edit Product';
+            document.getElementById('submitBtn').textContent = '💾 Update Product';
+            document.getElementById('submitBtn').className = 'btn success';
+            document.getElementById('cancelBtn').style.display = 'inline-block';
+            
+            editingProduct = product;
+            logResponse(`📝 Editing product: "${product.name}"`);
+            
+            // Scroll to form
+            document.getElementById('productForm').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function deleteProduct(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) {
+                logResponse(`❌ Product with ID ${id} not found`);
+                return;
+            }
+            
+            const confirmMessage = `Are you sure you want to delete "${product.name}"?\n\nThis action cannot be undone.`;
+            if (!confirm(confirmMessage)) {
+                logResponse(`❌ Delete cancelled for product: "${product.name}"`);
+                return;
+            }
+            
+            const statusElement = document.getElementById('apiStatus');
+            if (statusElement.classList.contains('offline')) {
+                logResponse('⚠️ Cannot delete product - API is offline');
+                return;
+            }
+            
+            try {
+                showLoading('Deleting product...');
+                console.log(`🗑️ Deleting product ${id}...`);
+                
+                const response = await fetch(`${API_BASE}/api/products/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    logResponse(`✅ Deleted product successfully: "${data.data.name}"`);
+                    console.log('✅ Product deleted:', data.data);
+                    
+                    // If we were editing this product, reset the form
+                    if (editingProduct && editingProduct.id === id) {
+                        resetForm();
+                    }
+                    
+                    loadProducts();
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error deleting product:', error);
+                logResponse(`❌ Error deleting product: ${error.message}`);
+                
+                if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+                    checkApiStatus();
+                }
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('productForm').reset();
+            document.getElementById('productId').value = '';
+            document.getElementById('formTitle').textContent = '➕ Add New Product';
+            document.getElementById('submitBtn').textContent = '➕ Create Product';
+            document.getElementById('submitBtn').className = 'btn success';
+            document.getElementById('cancelBtn').style.display = 'none';
+            editingProduct = null;
+            
+            logResponse('📝 Form reset - ready to add new product');
+        }
+
+        function showLoading(message) {
+            document.getElementById('responseArea').innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px; color: #3498db;">
+                    <div class="loading"></div>
+                    <strong>${message}</strong>
+                </div>
+            `;
+        }
+
+        function logResponse(message) {
+            const responseArea = document.getElementById('responseArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const newMessage = `[${timestamp}] ${message}`;
+            
+            // Keep only last 10 log entries
+            const existingMessages = responseArea.innerHTML.split('\n').filter(line => line.trim());
+            existingMessages.unshift(newMessage);
+            
+            responseArea.innerHTML = existingMessages.slice(0, 10).join('\n');
+        }
+
+        // Utility function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event listeners
+        document.getElementById('productForm').addEventListener('submit', createOrUpdateProduct);
+        document.getElementById('searchFilter').addEventListener('input', debounce(loadProducts, 300));
+        document.getElementById('categoryFilter').addEventListener('change', loadProducts);
+        document.getElementById('stockFilter').addEventListener('change', loadProducts);
+
+        // Debounce function to avoid too many API calls while typing
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Cleanup interval on page unload
+        window.addEventListener('beforeunload', () => {
+            if (apiStatusInterval) {
+                clearInterval(apiStatusInterval);
+            }
+        });
+
+        // Handle visibility change to check API when tab becomes visible
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                checkApiStatus();
+            }
+        });
+
+        console.log('🎉 Products API Manager loaded successfully!');
+    </script>
+</body>
+</html>
